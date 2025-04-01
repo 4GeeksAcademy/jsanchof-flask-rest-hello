@@ -1,13 +1,20 @@
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import String, Boolean, Integer, ForeignKey, PrimaryKeyConstraint
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import String, Boolean, Integer, ForeignKey, PrimaryKeyConstraint, Table, Column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 db = SQLAlchemy()
+
+#relationship  M <-> M
+likes = Table('likes', db.Model.metadata,
+              Column('user_id',Integer, ForeignKey('user.id', primary_key = True)),
+              Column('post_id',Integer, ForeignKey('post.id', primary_key = True)))
 
 class Followers(db.Model):
     user_from_id : Mapped[int] = mapped_column(Integer,ForeignKey('user.id'),nullable=False)
     user_to_id : Mapped[int] = mapped_column(Integer,ForeignKey('user.id'),nullable=False)
     __table_args__ = (PrimaryKeyConstraint('user_from_id', 'user_to_id'),)  # Composite primary key
+    #relationships
+    
 
     def serialize(self):
         return{
@@ -23,6 +30,10 @@ class User(db.Model):
     email: Mapped[str] = mapped_column(String(120), unique=True, nullable=False)
     password: Mapped[str] = mapped_column(nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean(), nullable=False)
+    #relationships
+    post: Mapped[list["Post"]] = relationship('Post', back_populates = 'user'),
+    liked_posts: Mapped[list["Post"]] = relationship('Post', secondary=likes, back_populates = 'user'),
+    comment: Mapped[list["Comment"]] = relationship('Comment', back_populates = 'liking_users')
 
     def serialize(self):
         return {
@@ -37,14 +48,18 @@ class User(db.Model):
 
 class Post(db.Model):
     id: Mapped[int] = mapped_column(primary_key=True)
+    post_text: Mapped[str] = mapped_column(String(120), nullable=False)
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey('user.id'), nullable=False)
+#relationships 
+    user: Mapped["User"] = relationship('User', back_populates='posts')
+    comments: Mapped[list["Comment"]] = relationship('Comment', back_populates='posts')
+    linking_users: Mapped[list["User"]] = relationship('User', secondary=likes, back_populates='liked_posts')
 
     def serialize(self):
         return {
             "id": self.id,
             "user_id": self.user_id
         }
-
 
 class Media(db.Model):
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -60,11 +75,14 @@ class Media(db.Model):
             "post_id": self.post_id
         }
 
-class Commet(db.Model):
+class Comment(db.Model):
     id: Mapped[int] = mapped_column(primary_key=True)
     commet_text: Mapped[str] = mapped_column(String(120), nullable=False)
     author_id: Mapped[int] = mapped_column(Integer, ForeignKey('user.id'), nullable=False)
     post_id: Mapped[int] = mapped_column(Integer, ForeignKey('post.id'), nullable=False)
+    #relationships
+    user: Mapped["User"] = relationship('User', back_populates='comments')
+    post: Mapped["Post"] = relationship('Post', back_populates='comments')
 
     def serialize(self):
         return {
